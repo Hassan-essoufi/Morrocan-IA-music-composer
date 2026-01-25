@@ -69,7 +69,7 @@ def maestro_train(config):
         loss=masked_sparse_categorical_crossentropy,
         metrics=["accuracy"]
     )
-
+    mlflow.set_experiment("training_on_maestro")
     # Training
     with mlflow.start_run(run_name="maestro_training") as run:
         # Log hyperparameters
@@ -86,6 +86,7 @@ def maestro_train(config):
 
         patience_counter = 0
         best_epoch = 0
+        best_weights = None
         best_val_loss = float("inf")
         for epoch in range(1, epochs + 1):
             print(f"\nEpoch {epoch}/{epochs}")
@@ -109,14 +110,8 @@ def maestro_train(config):
                 best_val_loss = val_loss
                 best_epoch = epoch
                 patience_counter = 0
+                best_weights = model.get_weights()
                 
-                os.makedirs(checkpoint_dir, exist_ok=True)
-                chpt_epoch_path = os.path.join(checkpoint_dir, f"maestro_epoch{epoch}.weights.h5")
-                model.save_weights(chpt_epoch_path)
-                print(f"Checkpoint saved: {chpt_epoch_path}")
-
-                # Log checkpoint as artifact
-                mlflow.log_artifact(chpt_epoch_path, artifact_path="checkpoints")
                 mlflow.log_metric("best_val_loss", best_val_loss, step=epoch)
                 mlflow.log_metric("best_epoch", best_epoch, step=epoch)
             
@@ -127,6 +122,9 @@ def maestro_train(config):
                 print(f"\nEarly stopping triggered at epoch {epoch}")
                 print(f"Best validation loss: {best_val_loss:.4f} at epoch {best_epoch}")
                 break
+
+        if best_weights:
+            model.set_weights(best_weights)
         model.save(checkpoint_maestro)
         mlflow.tensorflow.log_model(model, "maestro_transformer")
 
@@ -185,6 +183,7 @@ def train(config):
     model.compile(optimizer=optimizer, 
                   loss=masked_sparse_categorical_crossentropy,
                   metrics=["accuracy"])
+    mlflow.set_experiment("training_on_gnawa")
     with mlflow.start_run(run_name="music_transformer_training") as run:
         # Log hyperparameters
         mlflow.log_param("batch_size", batch_size)
@@ -200,6 +199,7 @@ def train(config):
 
         patience_counter = 0
         best_epoch = 0
+        best_weights  = None
         best_val_loss = float("inf")
         for epoch in range(1, epochs + 1):
             print(f"\nEpoch {epoch}/{epochs}")
@@ -221,15 +221,9 @@ def train(config):
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 best_epoch = epoch
+                best_weights =  model.get_weights()
                 patience_counter = 0
                 
-                os.makedirs(checkpoint_dir, exist_ok=True)
-                chpt_epoch_path = os.path.join(checkpoint_dir, f"mor_epoch{epoch}.weights.h5")
-                model.save_weights(chpt_epoch_path)
-                print(f"Checkpoint saved: {chpt_epoch_path}")
-
-                # Log checkpoint as artifact
-                mlflow.log_artifact(chpt_epoch_path, artifact_path="checkpoints")
                 mlflow.log_metric("best_val_loss", best_val_loss, step=epoch)
                 mlflow.log_metric("best_epoch", best_epoch, step=epoch)
             
@@ -240,7 +234,9 @@ def train(config):
                 print(f"\nEarly stopping triggered at epoch {epoch}")
                 print(f"Best validation loss: {best_val_loss:.4f} at epoch {best_epoch}")
                 break
-
+            
+        if best_weights:
+            model.set_weights(best_weights)
         # Save Checkpoint
         model.save(final_model_path)
         mlflow.tensorflow.log_model(model, "music_transformer")
